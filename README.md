@@ -1,163 +1,210 @@
-<a href="https://livekit.io/">
-  <img src="./.github/assets/livekit-mark.png" alt="LiveKit logo" width="100" height="100">
-</a>
+# Healthcare Voice Intake System
 
-# LiveKit Agents Starter - Python
+An AI-powered voice agent that automates patient intake interviews. Upload a healthcare form as a PDF, let the system extract the questions, and have a voice agent call patients and record their responses automatically.
 
-A complete starter project for building voice AI apps with [LiveKit Agents for Python](https://github.com/livekit/agents) and [LiveKit Cloud](https://cloud.livekit.io/).
+---
 
-The starter project includes:
+## What It Does
 
-- A simple voice AI assistant, ready for extension and customization
-- A voice AI pipeline built on [LiveKit Inference](https://docs.livekit.io/agents/models/inference)
-  with [models](https://docs.livekit.io/agents/models) from OpenAI, Cartesia, and Deepgram. More than 50 other model providers are supported, including [Realtime models](https://docs.livekit.io/agents/models/realtime)
-- Eval suite based on the LiveKit Agents [testing & evaluation framework](https://docs.livekit.io/agents/start/testing/)
-- [LiveKit Turn Detector](https://docs.livekit.io/agents/logic/turns/turn-detector/) for contextually-aware speaker detection, with multilingual support
-- [Background voice cancellation](https://docs.livekit.io/transport/media/noise-cancellation/)
-- Deep session insights from LiveKit [Agent Observability](https://docs.livekit.io/deploy/observability/)
-- A Dockerfile ready for [production deployment to LiveKit Cloud](https://docs.livekit.io/deploy/agents/)
+A doctor uploads a healthcare intake PDF. The system reads it, identifies all the questions, and a voice agent conducts a live phone-style interview with the patient. Every answer is saved to a PostgreSQL database as a single structured record per call.
 
-This starter app is compatible with any [custom web/mobile frontend](https://docs.livekit.io/frontends/) or [telephony](https://docs.livekit.io/telephony/).
+---
 
-## Using coding agents
+## Project Structure
 
-This project is designed to work with coding agents like [Claude Code](https://claude.com/product/claude-code), [Cursor](https://www.cursor.com/), and [Codex](https://openai.com/codex/).
-
-For your convenience, LiveKit offers both a CLI and an [MCP server](https://docs.livekit.io/reference/developer-tools/docs-mcp/) that can be used to browse and search its documentation. The [LiveKit CLI](https://docs.livekit.io/intro/basics/cli/) (`lk docs`) works with any coding agent that can run shell commands. Install it for your platform:
-
-**macOS:**
-
-```console
-brew install livekit-cli
+```
+healthcare-intake/
+│
+├── extractor.py              # Reads PDF and extracts questions using LangChain + Groq
+├── questions.json            # Output from extractor — list of questions for the agent
+│
+├── healthcare-agent/
+│   ├── src/
+│   │   └── agent.py          # LiveKit voice agent — runs the patient interview
+│   ├── questions/
+│   │   ├── general.json      # General intake questions
+│   │   ├── cardiology.json   # Cardiology-specific questions
+│   │   ├── ophthalmology.json
+│   │   └── pediatrics.json
+│   ├── .env.local            # API keys (not committed to git)
+│   └── pyproject.toml
+│
+└── README.md
 ```
 
-**Linux:**
+---
 
-```console
-curl -sSL https://get.livekit.io/cli | bash
-```
+## Tech Stack
 
-**Windows:**
+| Component | Technology |
+|-----------|-----------|
+| PDF Reading | pdfplumber |
+| Question Extraction | LangChain + Groq LLaMA 3.3 70B |
+| Voice Infrastructure | LiveKit Agents |
+| Speech to Text | Deepgram Nova-2 |
+| AI Brain | Groq LLaMA 3.3 70B |
+| Text to Speech | Deepgram Aura |
+| Voice Detection | Silero VAD |
+| Database | PostgreSQL on Neon |
 
-```console
-winget install LiveKit.LiveKitCLI
-```
+---
 
-The `lk docs` subcommand requires version 2.15.0 or higher. Check your version with `lk --version` and update if needed. Once installed, your coding agent can search and browse LiveKit documentation directly from the terminal:
+## Setup
 
-```console
-lk docs search "voice agents"
-lk docs get-page /agents/start/voice-ai-quickstart
-```
-
-See the [Using coding agents](https://docs.livekit.io/intro/coding-agents/) guide for more details, including MCP server setup.
-
-The project includes a complete [AGENTS.md](AGENTS.md) file for these assistants. You can modify this file to suit your needs. To learn more about this file, see [https://agents.md](https://agents.md).
-
-## Dev Setup
-
-Create a project from this template with the LiveKit CLI (recommended):
+### 1. Clone the repo and create a virtual environment
 
 ```bash
-lk cloud auth
-lk agent init my-agent --template agent-starter-python
+git clone https://github.com/your-username/healthcare-intake.git
+cd healthcare-intake
+python -m venv .venv
+.venv\Scripts\activate        # Windows
+source .venv/bin/activate     # Mac/Linux
 ```
 
-The CLI clones the template and configures your environment. Then follow the rest of this guide from [Run the agent](#run-the-agent).
-
-<details>
-<summary>Alternative: Manual setup without the CLI</summary>
-
-Clone the repository and install dependencies to a virtual environment:
-
-```console
-cd agent-starter-python
-uv sync
-```
-
-Sign up for [LiveKit Cloud](https://cloud.livekit.io/) then set up the environment by copying `.env.example` to `.env.local` and filling in the required keys:
-
-- `LIVEKIT_URL`
-- `LIVEKIT_API_KEY`
-- `LIVEKIT_API_SECRET`
-
-You can load the LiveKit environment automatically using the [LiveKit CLI](https://docs.livekit.io/intro/basics/cli/):
+### 2. Install dependencies
 
 ```bash
-lk cloud auth
-lk app env -w -d .env.local
+pip install pdfplumber langchain langchain-groq python-dotenv psycopg2-binary
+pip install livekit-agents livekit-plugins-groq livekit-plugins-deepgram livekit-plugins-silero livekit-plugins-turn-detector
 ```
 
-</details>
+### 3. Set up API keys
 
-## Run the agent
+Create a `.env.local` file inside the `healthcare-agent/` folder:
 
-Before your first run, you must download certain models such as [Silero VAD](https://docs.livekit.io/agents/logic/turns/vad/) and the [LiveKit turn detector](https://docs.livekit.io/agents/logic/turns/turn-detector/):
-
-```console
-uv run python src/agent.py download-files
+```
+LIVEKIT_URL=wss://your-project.livekit.cloud
+LIVEKIT_API_KEY=your-livekit-api-key
+LIVEKIT_API_SECRET=your-livekit-api-secret
+GROQ_API_KEY=your-groq-api-key
+DEEPGRAM_API_KEY=your-deepgram-api-key
+DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require
 ```
 
-Next, run this command to speak to your agent directly in your terminal:
+Create a `.env` file in the root folder (for the extractor):
 
-```console
-uv run python src/agent.py console
+```
+GROQ_API_KEY=your-groq-api-key
 ```
 
-To run the agent for use with a frontend or telephony, use the `dev` command:
+### 4. Set up the database
 
-```console
-uv run python src/agent.py dev
+In your Neon SQL editor (or any PostgreSQL client), run:
+
+```sql
+CREATE TABLE answers (
+    id           SERIAL PRIMARY KEY,
+    room_id      TEXT,
+    department   TEXT,
+    conversation JSONB,
+    created_at   TIMESTAMP DEFAULT NOW()
+);
 ```
 
-In production, use the `start` command:
+---
 
-```console
-uv run python src/agent.py start
+## Usage
+
+### Step 1 — Extract questions from your PDF
+
+Place your healthcare intake PDF in the root folder and run:
+
+```bash
+python extractor.py
 ```
 
-## Frontend & Telephony
+This will generate `questions.json` with all identified questions. Copy it into the `healthcare-agent/` folder.
 
-Get started quickly with our pre-built frontend starter apps, or add telephony support:
+### Step 2 — Start the voice agent
 
-| Platform | Link | Description |
-|----------|----------|-------------|
-| **Web** | [`livekit-examples/agent-starter-react`](https://github.com/livekit-examples/agent-starter-react) | Web voice AI assistant with React & Next.js |
-| **iOS/macOS** | [`livekit-examples/agent-starter-swift`](https://github.com/livekit-examples/agent-starter-swift) | Native iOS, macOS, and visionOS voice AI assistant |
-| **Flutter** | [`livekit-examples/agent-starter-flutter`](https://github.com/livekit-examples/agent-starter-flutter) | Cross-platform voice AI assistant app |
-| **React Native** | [`livekit-examples/voice-assistant-react-native`](https://github.com/livekit-examples/voice-assistant-react-native) | Native mobile app with React Native & Expo |
-| **Android** | [`livekit-examples/agent-starter-android`](https://github.com/livekit-examples/agent-starter-android) | Native Android app with Kotlin & Jetpack Compose |
-| **Web Embed** | [`livekit-examples/agent-starter-embed`](https://github.com/livekit-examples/agent-starter-embed) | Voice AI widget for any website |
-| **Telephony** | [Documentation](https://docs.livekit.io/telephony/) | Add inbound or outbound calling to your agent |
-
-For advanced customization, see the [complete frontend guide](https://docs.livekit.io/frontends/).
-
-## Tests and evals
-
-This project includes a complete suite of evals, based on the LiveKit Agents [testing & evaluation framework](https://docs.livekit.io/agents/start/testing/). To run them, use `pytest`.
-
-```console
-uv run pytest
+```bash
+cd healthcare-agent
+python src/agent.py dev
 ```
 
-## Using this template repo for your own project
+You should see:
+```
+✅ Loaded N questions
+✅ Connected to PostgreSQL!
+✅ Registered worker — healthcare-agent
+```
 
-Once you've started your own project based on this repo, you should:
+### Step 3 — Test the agent
 
-1. **Check in your `uv.lock`**: This file is currently untracked for the template, but you should commit it to your repository for reproducible builds and proper configuration management. (The same applies to `livekit.toml`, if you run your agents in LiveKit Cloud)
+Go to [agents-playground.livekit.io](https://agents-playground.livekit.io), connect using your LiveKit credentials, and start talking. The agent will greet you and begin asking intake questions.
 
-2. **Remove the git tracking test**: Delete the "Check files not tracked in git" step from `.github/workflows/tests.yml` since you'll now want this file to be tracked. These are just there for development purposes in the template repo itself.
+### Step 4 — View saved answers
 
-3. **Add your own repository secrets**: You must [add secrets](https://docs.github.com/en/actions/how-tos/writing-workflows/choosing-what-your-workflow-does/using-secrets-in-github-actions) for `LIVEKIT_URL`, `LIVEKIT_API_KEY`, and `LIVEKIT_API_SECRET` so that the tests can run in CI.
+In your Neon dashboard, run:
 
-## Deploying to production
+```sql
+SELECT room_id, department, created_at FROM answers ORDER BY created_at DESC;
+```
 
-This project is production-ready and includes a working `Dockerfile`. To deploy it to LiveKit Cloud or another environment, see the [deploying to production](https://docs.livekit.io/deploy/agents/) guide.
+To view a full conversation:
 
-## Self-hosted LiveKit
+```sql
+SELECT conversation FROM answers WHERE room_id = 'your-room-id';
+```
 
-You can also self-host LiveKit instead of using LiveKit Cloud. See the [self-hosting](https://docs.livekit.io/transport/self-hosting/local/) guide for more information. If you choose to self-host, you'll need to also use [model plugins](https://docs.livekit.io/agents/models/#plugins) instead of LiveKit Inference and will need to remove the [LiveKit Cloud noise cancellation](https://docs.livekit.io/transport/media/noise-cancellation/) plugin.
+---
 
-## License
+## How It Works
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+```
+Patient joins call
+      ↓
+Agent loads questions.json
+      ↓
+Asks questions one by one via voice
+      ↓
+Patient answers by speaking
+      ↓
+Deepgram STT converts speech to text
+      ↓
+Groq LLM generates next question
+      ↓
+Deepgram TTS speaks it aloud
+      ↓
+Call ends → full conversation saved to PostgreSQL
+```
+
+---
+
+## Environment Variables Reference
+
+| Variable | Where to get it |
+|----------|----------------|
+| `LIVEKIT_URL` | cloud.livekit.io → Project Settings |
+| `LIVEKIT_API_KEY` | cloud.livekit.io → Project Settings |
+| `LIVEKIT_API_SECRET` | cloud.livekit.io → Project Settings |
+| `GROQ_API_KEY` | console.groq.com → API Keys |
+| `DEEPGRAM_API_KEY` | console.deepgram.com → API Keys |
+| `DATABASE_URL` | neon.tech → Project → Connection String |
+
+---
+
+## Database Schema
+
+```sql
+answers (
+    id           SERIAL PRIMARY KEY,
+    room_id      TEXT,         -- unique LiveKit session ID
+    department   TEXT,         -- patient department (general, cardiology, etc.)
+    conversation JSONB,        -- full conversation as JSON array
+    created_at   TIMESTAMP     -- when the call happened
+)
+```
+
+Each conversation record looks like:
+
+```json
+[
+  { "role": "agent",   "text": "Hello! I am your healthcare assistant.", "time": "2026-05-26T10:00:01" },
+  { "role": "patient", "text": "Hi",                                     "time": "2026-05-26T10:00:04" },
+  { "role": "agent",   "text": "Do you currently have chest pain?",      "time": "2026-05-26T10:00:06" },
+  { "role": "patient", "text": "No I don't",                             "time": "2026-05-26T10:00:11" }
+]
+```
+
+---
